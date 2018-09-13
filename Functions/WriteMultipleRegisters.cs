@@ -101,8 +101,7 @@ namespace ModbusMasterIO.Functions
                                     var word1 = (ushort)(bytes[0] * 256 + bytes[1]);
                                     var word2 = (ushort)(bytes[2] * 256 + bytes[3]);
                                     data = new[] {word2, word1};
-                                }
-                                //работает на хлораторной НФС5
+                                }                                
                                 else if (byteOrder.Equals("2-3-0-1"))
                                 {
                                     var word1 = (ushort)(bytes[1] * 256 + bytes[0]);
