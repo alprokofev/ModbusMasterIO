@@ -1,0 +1,78 @@
+﻿using System;
+using SystemTable.SystemTools;
+using ModbusMasterIO.Interfaces;
+using ModbusMasterIO.Maps;
+using PlatformExtensions;
+using PlcEnvironment;
+using RuntimeTable;
+
+namespace ModbusMasterIO.Functions
+{
+    internal class WriteMultipleCoils : WriteMap
+    {
+        public WriteMultipleCoils(byte id, IModbusCommand mbCommand, DeviceInfo device, object locker)
+            : base(id, mbCommand, device, locker)
+        {
+            modbusMapType = ModbusMapType.WriteMultipleCoils;
+        }
+
+        protected override void WriteFunction()
+        {
+            try
+            {
+                var signalState = (SignalState)PlcThread.GetState();
+                var signalName = signalState.SignalName;
+                var mbInfo = dicSignals[signalName];
+                var register = mbInfo.Register;
+                var numberOfPoints = mbInfo.Count;
+                var value = signalState.Value;
+                var data = new bool[numberOfPoints];
+
+                for (int i = 0; i < numberOfPoints; i++)
+                {
+                    data[i] = ((int) value & (int) Math.Pow(2, i)) > 0;
+                }
+                while (!signalState.OutOfDateAlarm)
+                {
+                    lock (Locker)
+                    {
+                        try
+                        {
+                            if (!master.Open())
+                            {
+                                master.Close();
+                                AddMessage("com port not opening", DebugLevel.ExceptionLevel);
+                            }
+
+                            if (signalState.UseByDate <= AdvDateTime.Now || !signalState.ChannelLink)
+                            {
+                                AddMessage(signalName + " useByDate <= Now or channelLink = false",
+                                    DebugLevel.FullModeLevel);
+                                break;
+                            }
+
+                            master.WriteMultipleCoils(slaveAddress, register, numberOfPoints, data);
+                            if (master.GetType() == typeof(ModbusASCII) || master.GetType() == typeof(ModbusRTU))
+                                master.Close();
+
+                            AddMessage(signalName + " register: " + register + " set value: " + value,
+                                DebugLevel.FullModeLevel);
+                            signalState.ChannelLink = false;
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            AddMessage("WriteMultipleCoils catch exception: " + ex.Message, DebugLevel.ExceptionLevel);
+                        }
+                    }
+                    PlcThread.Sleep(50);
+                }
+            }
+            catch (Exception ex)
+            {
+                AddMessage(": an exception occurred in the function WriteMultipleCoilsThread() [ " +
+                    ex.Message + " ]", DebugLevel.ExceptionLevel);
+            }
+        }
+    }
+}
